@@ -557,10 +557,12 @@ if (fs.existsSync(CLIENT_DIST)) {
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 SyncRoom Server running on http://0.0.0.0:${PORT}`);
 
-  // 24x7 Keep-Alive Self-Ping Loop (prevents Render free tier from sleeping after 15m)
-  const keepAliveUrl = process.env.RENDER_EXTERNAL_URL || process.env.PING_URL;
-  if (keepAliveUrl) {
-    const cleanUrl = keepAliveUrl.replace(/\/$/, '');
+  // 24x7 Keep-Alive Self-Ping Loop (Render & Railway)
+  const rawUrl = process.env.RENDER_EXTERNAL_URL || 
+                 (process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : null) || 
+                 process.env.PING_URL;
+  if (rawUrl) {
+    const cleanUrl = rawUrl.replace(/\/$/, '');
     console.log(`📡 Auto Keep-Alive Active: Pinging ${cleanUrl}/ping every 10 mins`);
     setInterval(async () => {
       try {

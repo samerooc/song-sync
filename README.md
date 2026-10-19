@@ -25,7 +25,14 @@
    - Click **Create Monitor**!
    - Now UptimeRobot will ping the `/ping` endpoint, preventing Render from ever sleeping.
 
-### 2. Instant Public Tunnel Link
+### 2. 1-Click Railway Deployment (Railway.com / Railway.app)
+1. Go to [railway.com](https://railway.com) (or [railway.app](https://railway.app)).
+2. Click **New Project** > **Deploy from GitHub repo**.
+3. Select `samerooc/song-sync`.
+4. Railway will automatically detect [`railway.json`](file:///d:/Downloads/ssync/railway.json) & [`nixpacks.toml`](file:///d:/Downloads/ssync/nixpacks.toml), install dependencies, build the client, and start the app!
+5. In project settings, click **Generate Domain** to get your public HTTPS URL (e.g. `https://song-sync-production.up.railway.app`).
+
+### 3. Instant Public Tunnel Link
 - **Public URL**: `https://syncroom-rana.loca.lt`
 - **Tunnel Password / IP**: `152.59.62.80`
 

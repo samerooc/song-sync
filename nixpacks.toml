@@ -1,0 +1,16 @@
+[phases.setup]
+nixPkgs = ["nodejs_20"]
+
+[phases.install]
+cmds = [
+  "npm --prefix server install",
+  "npm --prefix client install"
+]
+
+[phases.build]
+cmds = [
+  "npm --prefix client run build"
+]
+
+[start]
+cmd = "node server/src/server.js"
