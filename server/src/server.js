@@ -63,18 +63,18 @@ function generateToken() {
 
 // Calculate current position for late joiners or sync queries
 function getRoomCurrentPosition(room) {
-  if (!room.media) return 0;
-  if (!room.playback.isPlaying) {
-    return room.playback.position;
+  if (!room || !room.playback) return 0;
+  if (!room.playback.isPlaying || !room.playback.scheduledStartTime) {
+    return room.playback.position || 0;
   }
   const now = Date.now();
   if (now < room.playback.scheduledStartTime) {
     // Scheduled in future, hasn't started yet
-    return room.playback.position;
+    return room.playback.position || 0;
   }
   const elapsed = (now - room.playback.scheduledStartTime) / 1000;
-  const currentPos = room.playback.position + elapsed * (room.playback.playbackRate || 1.0);
-  if (room.media.duration && currentPos >= room.media.duration) {
+  const currentPos = (room.playback.position || 0) + elapsed * (room.playback.playbackRate || 1.0);
+  if (room.media && room.media.duration && currentPos >= room.media.duration) {
     return room.media.duration;
   }
   return currentPos;
@@ -428,11 +428,10 @@ wss.on('connection', (ws) => {
         return;
       }
 
-      // Host Play (Scheduled in the future)
+      // Host Play (Scheduled in near future with low-latency 350ms buffer)
       if (msg.type === 'play') {
         const currentPos = typeof msg.position === 'number' ? msg.position : getRoomCurrentPosition(room);
-        // Scheduled start buffer: 1200ms gives all clients on WiFi ample time to receive packet & schedule exact Web Audio timestamp
-        const delay = msg.scheduledDelay || 1200;
+        const delay = msg.scheduledDelay || 350;
         const scheduledStartTime = Date.now() + delay;
 
         room.playback.isPlaying = true;
@@ -450,7 +449,7 @@ wss.on('connection', (ws) => {
         return;
       }
 
-      // Host Pause
+      // Host Pause (Instantaneous across all clients)
       if (msg.type === 'pause') {
         const currentPos = typeof msg.position === 'number' ? msg.position : getRoomCurrentPosition(room);
 
@@ -469,14 +468,13 @@ wss.on('connection', (ws) => {
         return;
       }
 
-      // Host Seek
+      // Host Seek (Instant seek with 350ms scheduling if playing)
       if (msg.type === 'seek') {
         const targetPos = Math.max(0, msg.position || 0);
         let scheduledStartTime = 0;
 
         if (room.playback.isPlaying) {
-          // If already playing, schedule the new seek start point in near future
-          const delay = msg.scheduledDelay || 1200;
+          const delay = msg.scheduledDelay || 350;
           scheduledStartTime = Date.now() + delay;
           room.playback.scheduledStartTime = scheduledStartTime;
         }

@@ -32,6 +32,7 @@ export default function HostControls({
   const [youtubeUrl, setYoutubeUrl] = useState('');
   const [ytError, setYtError] = useState('');
   const [activeTab, setActiveTab] = useState('search'); // 'search' | 'url' | 'file'
+  const [dragVal, setDragVal] = useState(null);
   const fileInputRef = useRef(null);
 
   const formatTime = (seconds) => {
@@ -39,6 +40,16 @@ export default function HostControls({
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
     return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+  };
+
+  const handleSliderChange = (e) => {
+    setDragVal(parseFloat(e.target.value));
+  };
+
+  const handleSliderCommit = (e) => {
+    const val = parseFloat(e.target.value);
+    setDragVal(null);
+    if (onSeek) onSeek(val);
   };
 
   const handleFileChange = (e) => {
@@ -289,7 +300,7 @@ export default function HostControls({
               <span className="font-bold text-slate-900 truncate">{media.title}</span>
             </div>
             <span className="font-mono text-slate-600 font-medium">
-              {formatTime(currentTime)} / {formatTime(effectiveDuration)}
+              {formatTime(dragVal !== null ? dragVal : currentTime)} / {formatTime(effectiveDuration)}
             </span>
           </div>
 
@@ -300,8 +311,11 @@ export default function HostControls({
               min="0"
               max={effectiveDuration || 100}
               step="0.5"
-              value={currentTime}
-              onChange={(e) => onSeek(parseFloat(e.target.value))}
+              value={dragVal !== null ? dragVal : currentTime}
+              onChange={handleSliderChange}
+              onMouseUp={handleSliderCommit}
+              onTouchEnd={handleSliderCommit}
+              onKeyUp={handleSliderCommit}
               className="w-full cursor-pointer accent-slate-900"
             />
           </div>

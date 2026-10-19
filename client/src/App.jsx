@@ -44,6 +44,8 @@ export default function App() {
   // Sync & Audio State
   const [media, setMedia] = useState(null);
   const [playback, setPlayback] = useState({ isPlaying: false, position: 0, scheduledStartTime: 0 });
+  const [activeTime, setActiveTime] = useState(0);
+  const [activeDuration, setActiveDuration] = useState(0);
   const [audioState, setAudioState] = useState({
     currentTime: 0,
     duration: 0,
@@ -107,6 +109,16 @@ export default function App() {
       }
     };
   }, []);
+
+  // Sync activeTime and activeDuration for local uploaded files
+  useEffect(() => {
+    if (media?.type === 'file') {
+      setActiveTime(audioState.currentTime);
+      if (audioState.duration > 0) {
+        setActiveDuration(audioState.duration);
+      }
+    }
+  }, [audioState.currentTime, audioState.duration, media?.type]);
 
   // Mobile background audio keepalive
   const enableBackgroundAudioKeepAlive = () => {
@@ -211,6 +223,7 @@ export default function App() {
 
           if (msg.media) {
             setMedia(msg.media);
+            if (msg.media.duration) setActiveDuration(msg.media.duration);
             if (msg.media.type === 'file') {
               audioEngineRef.current.loadSource(msg.media.url);
             }
@@ -218,6 +231,9 @@ export default function App() {
 
           if (msg.playback) {
             setPlayback(msg.playback);
+            if (typeof msg.playback.position === 'number') {
+              setActiveTime(msg.playback.position);
+            }
             if (msg.media?.type === 'file') {
               if (msg.playback.isPlaying) {
                 audioEngineRef.current.handleScheduledPlay(msg.playback.scheduledStartTime, msg.playback.position);
@@ -259,7 +275,9 @@ export default function App() {
         if (msg.type === 'media_updated') {
           setMedia(msg.media);
           setPlayback(msg.playback);
-          if (msg.media.type === 'file') {
+          setActiveTime(0);
+          if (msg.media?.duration) setActiveDuration(msg.media.duration);
+          if (msg.media?.type === 'file') {
             audioEngineRef.current.loadSource(msg.media.url);
           }
           return;
@@ -273,6 +291,10 @@ export default function App() {
             position: msg.position,
             scheduledStartTime: msg.scheduledStartTime || 0
           }));
+
+          if (typeof msg.position === 'number') {
+            setActiveTime(msg.position);
+          }
 
           if (media?.type === 'file') {
             if (msg.action === 'play') {
@@ -416,8 +438,8 @@ export default function App() {
     enableBackgroundAudioKeepAlive();
     wsRef.current.send(JSON.stringify({
       type: 'play',
-      position: audioState.currentTime,
-      scheduledDelay: 1200 // 1.2s future timestamp
+      position: activeTime,
+      scheduledDelay: 350 // Ultra-low latency 350ms
     }));
   };
 
@@ -425,16 +447,17 @@ export default function App() {
     if (!wsRef.current || !isHost) return;
     wsRef.current.send(JSON.stringify({
       type: 'pause',
-      position: audioState.currentTime
+      position: activeTime
     }));
   };
 
   const handleHostSeek = (targetPos) => {
     if (!wsRef.current || !isHost) return;
+    setActiveTime(targetPos);
     wsRef.current.send(JSON.stringify({
       type: 'seek',
       position: targetPos,
-      scheduledDelay: 1200
+      scheduledDelay: 350 // Ultra-low latency 350ms
     }));
   };
 
@@ -783,31 +806,40 @@ export default function App() {
               </div>
             </div>
 
-            {/* Media Player: Namida Audio Mode vs Video Mode */}
-            {streamMode === 'audio' || media?.type === 'file' ? (
+            {/* YouTube Audio/Video Engine: Kept mounted in DOM so audio plays in both Namida and Video mode */}
+            {media?.type === 'youtube' && (
+              <div className={streamMode === 'video' ? 'block' : 'fixed -top-[9999px] left-0 w-1 h-1 opacity-0 pointer-events-none'}>
+                <YouTubePlayer
+                  youtubeId={media?.youtubeId}
+                  media={media}
+                  playback={playback}
+                  clockSync={clockSyncRef.current}
+                  userLatencyOffset={audioEngineRef.current ? audioEngineRef.current.userLatencyOffset : 0}
+                  isHost={isHost}
+                  videoQuality={videoQuality}
+                  onTimeUpdate={(cur, dur) => {
+                    setActiveTime(cur);
+                    if (dur > 0) setActiveDuration(dur);
+                  }}
+                  onSeek={handleHostSeek}
+                  onToggleMode={() => handleChangeStreamMode('audio')}
+                />
+              </div>
+            )}
+
+            {/* Namida Player UI (Rendered in Audio mode or for local uploaded files) */}
+            {(streamMode === 'audio' || media?.type === 'file' || !media) && (
               <NamidaPlayer
                 media={media}
                 playback={playback}
-                currentTime={audioState.currentTime}
-                duration={audioState.duration}
+                currentTime={activeTime}
+                duration={activeDuration}
                 isHost={isHost}
                 streamMode={streamMode}
                 onToggleMode={() => handleChangeStreamMode('video')}
                 onPlay={handleHostPlay}
                 onPause={handleHostPause}
                 onSeek={handleHostSeek}
-              />
-            ) : (
-              <YouTubePlayer
-                youtubeId={media?.youtubeId}
-                media={media}
-                playback={playback}
-                clockSync={clockSyncRef.current}
-                userLatencyOffset={audioEngineRef.current.userLatencyOffset}
-                isHost={isHost}
-                videoQuality={videoQuality}
-                onSeek={handleHostSeek}
-                onToggleMode={() => handleChangeStreamMode('audio')}
               />
             )}
 
@@ -816,8 +848,8 @@ export default function App() {
               <HostControls
                 media={media}
                 playback={playback}
-                currentTime={audioState.currentTime}
-                duration={audioState.duration}
+                currentTime={activeTime}
+                duration={activeDuration}
                 streamMode={streamMode}
                 videoQuality={videoQuality}
                 onPlay={handleHostPlay}

@@ -7,8 +7,8 @@ import {
 export default function NamidaPlayer({
   media,
   playback,
-  currentTime,
-  duration,
+  currentTime = 0,
+  duration = 180,
   isHost,
   streamMode,
   onToggleMode,
@@ -18,6 +18,7 @@ export default function NamidaPlayer({
 }) {
   const canvasRef = useRef(null);
   const animFrameRef = useRef(null);
+  const [dragVal, setDragVal] = useState(null);
 
   // Equalizer animation
   useEffect(() => {
@@ -39,9 +40,7 @@ export default function NamidaPlayer({
 
       for (let i = 0; i < barCount; i++) {
         if (isPlaying) {
-          // Dynamic sound-wave simulation matching beat
           if (Math.random() > 0.6) {
-            // Emphasize center and bass bars
             const centerWeight = 1 - Math.abs(i - barCount / 2) / (barCount / 2);
             targets[i] = Math.random() * (height * 0.75 * centerWeight) + 6;
           }
@@ -49,13 +48,11 @@ export default function NamidaPlayer({
           targets[i] = 4;
         }
 
-        // Smooth spring easing
         heights[i] += (targets[i] - heights[i]) * 0.22;
 
         const x = i * (barWidth + 3);
         const y = height - heights[i];
 
-        // Gradient for frequency bars
         const grad = ctx.createLinearGradient(0, height, 0, 0);
         grad.addColorStop(0, '#ec4899'); // Pink
         grad.addColorStop(0.5, '#8b5cf6'); // Purple
@@ -84,9 +81,19 @@ export default function NamidaPlayer({
     return `${mins}:${s < 10 ? '0' : ''}${s}`;
   };
 
-  const effectiveDuration = duration || media?.duration || 180;
-  const progressPercent = effectiveDuration > 0 ? (currentTime / effectiveDuration) * 100 : 0;
+  const effectiveDuration = duration > 0 ? duration : (media?.duration || 180);
+  const displayTime = dragVal !== null ? dragVal : currentTime;
   const isPlaying = playback?.isPlaying;
+
+  const handleSliderChange = (e) => {
+    setDragVal(parseFloat(e.target.value));
+  };
+
+  const handleSliderCommit = (e) => {
+    const val = parseFloat(e.target.value);
+    setDragVal(null);
+    if (onSeek) onSeek(val);
+  };
 
   return (
     <div className="relative rounded-3xl overflow-hidden bg-gradient-to-b from-slate-900 via-slate-950 to-black border border-slate-800 p-5 sm:p-7 shadow-2xl text-white space-y-6">
@@ -106,10 +113,10 @@ export default function NamidaPlayer({
                 Namida Audio Mode
               </span>
               <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
-                <Zap className="w-2.5 h-2.5" /> Data Saver • 0 Ads
+                <Zap className="w-2.5 h-2.5" /> Ultra-Low Latency &bull; 0 Ads
               </span>
             </div>
-            <p className="text-[11px] text-slate-400">Low-latency high-fidelity synchronized audio</p>
+            <p className="text-[11px] text-slate-400">Synchronized High-Fidelity Audio Array</p>
           </div>
         </div>
 
@@ -130,14 +137,12 @@ export default function NamidaPlayer({
       <div className="relative z-10 flex flex-col sm:flex-row items-center gap-6 sm:gap-8 justify-center py-2">
         {/* Rotating Vinyl Disc */}
         <div className="relative w-40 h-40 sm:w-48 sm:h-48 shrink-0 flex items-center justify-center">
-          {/* Vinyl Grooves */}
           <div
             className={`w-full h-full rounded-full bg-slate-950 border-4 border-slate-800 shadow-2xl flex items-center justify-center relative overflow-hidden transition-all ${
               isPlaying ? 'animate-spin' : ''
             }`}
             style={{ animationDuration: '6s', animationTimingFunction: 'linear' }}
           >
-            {/* Concentric rings */}
             <div className="absolute inset-4 rounded-full border border-slate-800/80" />
             <div className="absolute inset-8 rounded-full border border-slate-800/60" />
             <div className="absolute inset-12 rounded-full border border-slate-800/40" />
@@ -155,7 +160,6 @@ export default function NamidaPlayer({
                   <Disc className="w-8 h-8 text-purple-300" />
                 </div>
               )}
-              {/* Spindle hole */}
               <div className="absolute inset-0 m-auto w-3.5 h-3.5 rounded-full bg-slate-950 border border-slate-700" />
             </div>
           </div>
@@ -166,13 +170,13 @@ export default function NamidaPlayer({
           <div className="space-y-1">
             <span className="text-[11px] font-mono uppercase tracking-widest text-purple-400 font-semibold flex items-center justify-center sm:justify-start gap-1.5">
               <span className={`w-2 h-2 rounded-full ${isPlaying ? 'bg-emerald-400 animate-ping' : 'bg-slate-500'}`} />
-              {isPlaying ? 'Now Playing Across Room' : 'Paused'}
+              {isPlaying ? 'Now Playing Across Room' : 'Paused by Admin'}
             </span>
             <h3 className="text-lg sm:text-2xl font-black text-white font-heading truncate max-w-full">
               {media?.title || 'No Track Selected'}
             </h3>
             <p className="text-xs sm:text-sm text-slate-400 truncate">
-              {media?.channel || (media?.type === 'file' ? 'Local Audio Track' : 'Select a song via Search')}
+              {media?.channel || (media?.type === 'file' ? 'Local Audio Track' : 'Choose a song from YouTube Search')}
             </p>
           </div>
 
@@ -181,24 +185,27 @@ export default function NamidaPlayer({
             <canvas ref={canvasRef} className="w-full h-full" />
           </div>
 
-          {/* Scrub Bar & Timers */}
+          {/* Music Progress Slider */}
           <div className="space-y-1.5 pt-1">
             <div className="relative w-full">
               <input
                 type="range"
                 min="0"
-                max={effectiveDuration || 100}
+                max={effectiveDuration}
                 step="0.5"
-                value={currentTime}
+                value={displayTime}
                 disabled={!isHost}
-                onChange={(e) => isHost && onSeek(parseFloat(e.target.value))}
-                className={`w-full h-1.5 rounded-lg accent-purple-500 bg-slate-800 cursor-pointer ${
+                onChange={handleSliderChange}
+                onMouseUp={handleSliderCommit}
+                onTouchEnd={handleSliderCommit}
+                onKeyUp={handleSliderCommit}
+                className={`w-full h-2 rounded-lg accent-purple-400 bg-slate-800 cursor-pointer ${
                   !isHost ? 'cursor-default opacity-80' : ''
                 }`}
               />
             </div>
             <div className="flex items-center justify-between text-xs font-mono text-slate-400">
-              <span>{formatTime(currentTime)}</span>
+              <span>{formatTime(displayTime)}</span>
               <span>{formatTime(effectiveDuration)}</span>
             </div>
           </div>
@@ -220,6 +227,7 @@ export default function NamidaPlayer({
             <button
               onClick={onPause}
               className="w-14 h-14 rounded-full bg-gradient-to-tr from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-white font-bold flex items-center justify-center shadow-lg shadow-amber-500/30 transform active:scale-95 transition-all cursor-pointer"
+              title="Pause on all devices"
             >
               <Pause className="w-6 h-6 fill-current" />
             </button>
@@ -227,6 +235,7 @@ export default function NamidaPlayer({
             <button
               onClick={onPlay}
               className="w-14 h-14 rounded-full bg-gradient-to-tr from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold flex items-center justify-center shadow-lg shadow-purple-600/30 transform active:scale-95 transition-all cursor-pointer pl-0.5"
+              title="Play on all devices"
             >
               <Play className="w-6 h-6 fill-current" />
             </button>
